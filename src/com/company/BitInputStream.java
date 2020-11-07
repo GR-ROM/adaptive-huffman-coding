@@ -1,39 +1,67 @@
 package com.company;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
-class BitInputStream {
+public final class BitInputStream {
 
-    private final InputStream in;
-    private int num = 0;
-    private int count = 8;
+    // Underlying byte stream to read from.
+    private final InputStream input;
 
+    // Either in the range 0x00 to 0xFF if bits are available, or is -1 if the end of stream is reached.
+    private int nextBits;
+
+    // Always between 0 and 7, inclusive.
+    private int numBitsRemaining;
+
+    private boolean isEndOfStream;
+
+    // Creates a bit input stream based on the given byte input stream.
     public BitInputStream(InputStream in) {
-        this.in = in;
+        if (in == null)
+            throw new NullPointerException("Argument is null");
+        input = in;
+        numBitsRemaining = 0;
+        isEndOfStream = false;
     }
 
-    public int getNum() {
-        return num;
-    }
-
-    public void setNum(int num) {
-        this.num = num;
-    }
-
-    public boolean read() throws IOException {
-        if (this.count == 8) {
-            this.num = this.in.read();
-            this.count = 0;
+    // Reads a bit from the stream. Returns 0 or 1 if a bit is available, or -1 if the end of stream is reached. The end of stream always occurs on a byte boundary.
+    public int read() throws IOException {
+        if (isEndOfStream)
+            return -1;
+        if (numBitsRemaining == 0) {
+            nextBits = input.read();
+            if (nextBits == -1) {
+                isEndOfStream = true;
+                return -1;
+            }
+            numBitsRemaining = 8;
         }
-        boolean x = (num & 1) == 1;
-        num = num >> 1;
-        this.count++;
-        return x;
+        numBitsRemaining--;
+        return (nextBits >>> numBitsRemaining) & 1;
     }
 
+    // Reads a bit from the stream. Returns 0 or 1 if a bit is available, or throws an EOFException if the end of stream is reached.
+    public int readNoEof() throws IOException {
+        int result = read();
+        if (result != -1)
+            return result;
+        else
+            throw new EOFException("End of stream reached");
+    }
+
+    public int getBytesRead() {
+        return nextBits;
+    }
+
+    // Closes this stream and the underlying InputStream.
     public void close() throws IOException {
-        this.in.close();
+        input.close();
+    }
+
+    public boolean isEndOfStream() {
+        return this.isEndOfStream;
     }
 
 }
