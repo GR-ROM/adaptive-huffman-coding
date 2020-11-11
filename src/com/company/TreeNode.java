@@ -1,11 +1,10 @@
 package com.company;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 public class TreeNode implements Comparable<TreeNode> {
     private Integer c;
-    private byte[] code;
+    private final byte[] code;
     private int codeLen;
     private int weight;
     private TreeNode parent;
@@ -24,17 +23,15 @@ public class TreeNode implements Comparable<TreeNode> {
 
     public TreeNode(Integer c, int weight) {
         this.c = c;
-        this.code=new byte[32];
-        Arrays.fill(this.code, 0, 31, (byte)-1);
-        this.codeLen=0;
+        this.code = new byte[32];
+        this.codeLen = 0;
         this.weight = weight;
     }
 
     public TreeNode(TreeNode left, TreeNode right) {
         this.c = null;
-        this.code=new byte[32];
-        this.codeLen=0;
-        Arrays.fill(this.code, 0, 31, (byte)-1);
+        this.code = new byte[32];
+        this.codeLen = 0;
         this.weight = left.weight + right.weight;
         this.left = left;
         this.right = right;
@@ -101,21 +98,21 @@ public class TreeNode implements Comparable<TreeNode> {
         return this.code;
     }
 
-    public int getIntCode(){
-        int t=0;
-        for (int i=0;i!=this.codeLen;i++){
-            t|=this.code[i];
+    public void setCode(byte[] code) {
+        System.arraycopy(code, 0, this.code, 0, 32);
+    }
+
+    public int getIntCode() {
+        int t = 0;
+        for (int i = 0; i != this.codeLen; i++) {
+            t |= this.code[i];
         }
-        if (t<0) t=0;
+        if (t < 0) t = 0;
         return t;
     }
 
-    public byte getCode(int index){
+    public byte getCode(int index) {
         return this.code[index];
-    }
-
-    public void setCode(byte[] code) {
-        System.arraycopy(code, 0, this.code, 0, 32);
     }
 
     public Integer getCodeLen() {

@@ -9,7 +9,7 @@ public class Main {
         Huffman huffman = new Huffman();
         List<Integer> s;
         try {
-            s = huffman.encode("C:/Users/exp10/OneDrive/Documents/input.txt", "C:/Users/exp10/OneDrive/Documents/compressed.bin");
+            s = huffman.encode("C:/Users/exp10/OneDrive/Documents/access.log", "C:/Users/exp10/OneDrive/Documents/compressed.bin");
             System.out.println(s);
 
             huffman.decode("C:/Users/exp10/OneDrive/Documents/compressed.bin", "C:/Users/exp10/OneDrive/Documents/decompressed.txt");

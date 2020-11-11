@@ -47,8 +47,9 @@ public class TreePrinter {
 
 
     private String printNode(TreeNode node) {
-        if (node.getC()!=null)
-        return node.getWeight() + " |" + node.getCodeLen() + "|" +node.getC() + "| " + Arrays.toString(node.getCode()); else
-            return node.getWeight() + " |" + node.getC() + "| " ;
+        if (node.getC() != null)
+            return node.getWeight() + " |" + node.getCodeLen() + "|" + node.getC() + "| " + Arrays.toString(node.getCode());
+        else
+            return node.getWeight() + " |" + node.getC() + "| ";
     }
 }
