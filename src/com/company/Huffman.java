@@ -59,20 +59,6 @@ public class Huffman {
         }
     }
 
-    private void traverseTree(TreeNode node, byte[] code, int codeLen) {
-        if (node.getLeft() != null) traverseTree(node.getLeft(), code,codeLen + 1);
-        if (node.getRight() != null){
-            code[codeLen]=1;
-            traverseTree(node.getRight(), code,codeLen + 1);
-        }
-        if (node.getC() != null) {
-            node.setCodeLen(codeLen + 1);
-            if (codes != null)
-                node.setCode(code);
-                codes.put((int)node.getC(), node);
-        }
-    }
-
     private TreeNode getRoot(TreeNode node) {
         while (node.getParent() != null) node = node.getParent();
         return node;
