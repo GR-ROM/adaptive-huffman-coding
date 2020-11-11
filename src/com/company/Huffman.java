@@ -1,5 +1,7 @@
 package com.company;
 
+import sun.reflect.generics.tree.Tree;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -8,11 +10,12 @@ import java.util.*;
 
 public class Huffman {
 
-    private final char ESC = 0xFF;
+    private final int ESC = 0xFFFF;
+    private final int EOF = 0x7FFF;
     private int numCode;
     private TreeNode root;
-    private Map<Character, Integer> frequency;
-    private Map<Character, TreeNode> codes;
+    private Map<Integer, Integer> frequency;
+    private Map<Integer, TreeNode> codes;
     private List<TreeNode> weights;
 
     private void addNewNode(TreeNode newNode) {
@@ -31,6 +34,31 @@ public class Huffman {
         Collections.sort(weights);
     }
 
+    private void traverseTree(TreeNode node){
+        byte[] code=new byte[32];
+        int deep;
+        Arrays.fill(code, 0, 31, (byte)-1);
+        List<TreeNode> stack=new ArrayList<>();
+        stack.add(node);
+        deep=0;
+        while(stack.size()!=0){
+            node=stack.remove(stack.size()-1);
+            if (node.getC()!=null){
+                node.setCodeLen(deep);
+                node.setCode(code);
+                codes.put((int)node.getC(), node);
+            }
+            if (node.getLeft()!=null){
+                code[deep++]=0;
+                stack.add(node.getLeft());
+            }
+            if (node.getRight()!=null){
+                code[deep++]=1;
+                stack.add(node.getRight());
+            }
+        }
+    }
+
     private void traverseTree(TreeNode node, byte[] code, int codeLen) {
         if (node.getLeft() != null) traverseTree(node.getLeft(), code,codeLen + 1);
         if (node.getRight() != null){
@@ -41,7 +69,7 @@ public class Huffman {
             node.setCodeLen(codeLen + 1);
             if (codes != null)
                 node.setCode(code);
-                codes.put(node.getC(), node);
+                codes.put((int)node.getC(), node);
         }
     }
 
@@ -76,7 +104,7 @@ public class Huffman {
     private TreeNode reBuildTree() {
         List<TreeNode> f = new ArrayList<>();
         weights.clear();
-        for (Character c : frequency.keySet()) {
+        for (Integer c : frequency.keySet()) {
             TreeNode node = new TreeNode(c, frequency.get(c));
             f.add(node);
             weights.add(node);
@@ -96,7 +124,7 @@ public class Huffman {
         }
         Collections.sort(weights);
         if (codes != null) codes.clear();
-        traverseTree(f.get(0), new byte[32], 0);
+        traverseTree(f.get(0));
         return f.get(0);
     }
 
@@ -107,7 +135,7 @@ public class Huffman {
         }
     }
 
-    private void putSymbolToFile(BitOutputStream bos, char sym) throws IOException {
+    private void putSymbolToFile(BitOutputStream bos, int sym) throws IOException {
         for (int i = 0; i != 8; i++) {
             bos.write((sym & 1) > 0);
             sym >>= 1;
@@ -127,14 +155,19 @@ public class Huffman {
 
     public List<Integer> encode(String sourceFileName, String destinationFileName) throws IOException {
         weights = new ArrayList<>();
-        char c;
+        int c;
         int bytesRead = 0;
         byte[] inputBuffer = new byte[16];
         frequency = new TreeMap<>();
+
+        codes = new HashMap<>();
+        TreeNode eof = new TreeNode(EOF, 10000000);
+        weights.add(eof);
+
         frequency.clear();
         frequency.put(ESC, 0);
-        codes = new HashMap<>();
-        root = reBuildTree();
+        frequency.put(EOF, 10000000);
+        root=reBuildTree();
         TreePrinter tp = new TreePrinter();
         tp.printTree(getRoot(weights.get(0)));
         List<Integer> result = new ArrayList<>();
@@ -147,15 +180,15 @@ public class Huffman {
             bytesRead = fis.read(inputBuffer);
             if (bytesRead < 0) break;
             for (int i = 0; i != bytesRead; i++) {
-                c = (char) inputBuffer[i];
+                c = (byte) inputBuffer[i];
                 Integer counter = frequency.get(c);
-                frequency.put(c, counter == null ? 1 : counter + 1);
+                frequency.put((int)c, counter == null ? 1 : counter + 1);
                 if (!codes.containsKey(c)) {
                     putCodeToFile(bos, codes.get(ESC));
                     result.add(codes.get(ESC).getIntCode());
                     putSymbolToFile(bos, c);
                     result.add((int)c);
-                    addNewNode(new TreeNode(c, 1));
+                    addNewNode(new TreeNode((int)c, 1));
                     reBuildTree();
                     tp.printTree(getRoot(weights.get(0)));
                 } else {
@@ -163,7 +196,7 @@ public class Huffman {
                     result.add(codes.get(c).getIntCode());
                     updateTree(codes.get(c));
                     codes.clear();
-                    traverseTree(getRoot(weights.get(0)), new byte[32], 0);
+                    traverseTree(getRoot(weights.get(0)));
                 }//reBuildTree();
             }
         }
@@ -179,6 +212,10 @@ public class Huffman {
             byte[] code=node.getCode();
             if (node.getC() != null) {
                 for (int i=0;i!=32;i++){
+                    if (newCode[i]<0 || code[i]<0){
+                        match=false;
+                        break;
+                    }
                     if (newCode[i]!=code[i]){
                         match=false;
                         break;
@@ -197,7 +234,7 @@ public class Huffman {
         byte[] bufOut = new byte[16];
         int bufCount = 0;
         byte[] code = new byte[32];
-        char c;
+        int c;
         int codeLen = 0;
         frequency = new TreeMap<>();
         frequency.clear();
@@ -215,14 +252,14 @@ public class Huffman {
                 if (node.getC() == ESC) {
                     c = getSymbolFromFile(bis);
                     Integer counter = frequency.get(c);
-                    frequency.put(c, counter == null ? 1 : counter + 1);
+                    frequency.put((int)c, counter == null ? 1 : counter + 1);
                     reBuildTree();
                 } else {
                     c = node.getC();
                     Integer counter = frequency.get(c);
                     frequency.put(c, counter == null ? 1 : counter + 1);
                     updateTree(codes.get(c));
-                    traverseTree(getRoot(weights.get(0)), new byte[32], 0);
+                    traverseTree(getRoot(weights.get(0)));
                 }
                 bufOut[bufCount++] = (byte) c;
                 c = 0;
