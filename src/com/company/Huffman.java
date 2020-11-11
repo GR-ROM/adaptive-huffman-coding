@@ -35,26 +35,32 @@ public class Huffman {
     }
 
     private void traverseTree(TreeNode node){
-        byte[] code=new byte[32];
-        int deep;
-        Arrays.fill(code, 0, 31, (byte)-1);
+        byte[] code;
         List<TreeNode> stack=new ArrayList<>();
         stack.add(node);
-        deep=0;
+
         while(stack.size()!=0){
+            TreeNode parent;
             node=stack.remove(stack.size()-1);
             if (node.getC()!=null){
-                node.setCodeLen(deep);
-                node.setCode(code);
                 codes.put((int)node.getC(), node);
-            }
-            if (node.getLeft()!=null){
-                code[deep++]=0;
-                stack.add(node.getLeft());
-            }
-            if (node.getRight()!=null){
-                code[deep++]=1;
-                stack.add(node.getRight());
+            } else {
+                if (node.getLeft() != null) {
+                    parent=node.getLeft().getParent();
+                    code=parent.getCode();
+                    code[node.getCodeLen()]=0;
+                    node.getLeft().setCodeLen(parent.getCodeLen()+1);
+                    node.getLeft().setCode(code);
+                    stack.add(node.getLeft());
+                }
+                if (node.getRight() != null) {
+                    parent=node.getRight().getParent();
+                    code=parent.getCode();
+                    code[node.getCodeLen()]=1;
+                    node.getRight().setCodeLen(parent.getCodeLen()+1);
+                    node.getRight().setCode(code);
+                    stack.add(node.getRight());
+                }
             }
         }
     }
@@ -105,26 +111,28 @@ public class Huffman {
             right = f.get(0);
             f.remove(0);
             TreeNode node = new TreeNode(left, right);
+            left.setParent(node);
+            right.setParent(node);
             f.add(node);
             weights.add(node);
         }
         Collections.sort(weights);
         if (codes != null) codes.clear();
-        traverseTree(f.get(0));
+        traverseTree(getRoot(f.get(0)));
         return f.get(0);
     }
 
     private void putCodeToFile(BitOutputStream bos, TreeNode codeNode) throws IOException {
         byte[] code=codeNode.getCode();
         for (int i = 0; i != codeNode.getCodeLen(); i++) {
-            bos.write((code[i]!=0) ? true : false);
+            bos.write((code[i]!=0) ? 1 : 0);
         }
     }
 
     private void putSymbolToFile(BitOutputStream bos, int sym) throws IOException {
         for (int i = 0; i != 8; i++) {
-            bos.write((sym & 1) > 0);
-            sym >>= 1;
+            int l=(sym & (1<<i))>>i;
+            bos.write(l);
         }
     }
 
@@ -133,7 +141,7 @@ public class Huffman {
         char sym = 0;
         for (int i = 0; i != bitLen; i++) {
             sym >>= 1;
-            if (bis.read())
+            if (bis.read()>0)
                 sym |= 0x80;
         }
         return sym;
@@ -147,8 +155,6 @@ public class Huffman {
         frequency = new TreeMap<>();
 
         codes = new HashMap<>();
-        TreeNode eof = new TreeNode(EOF, 10000000);
-        weights.add(eof);
 
         frequency.clear();
         frequency.put(ESC, 0);
@@ -161,7 +167,7 @@ public class Huffman {
         FileInputStream fis = new FileInputStream(new File(sourceFileName));
         FileOutputStream fos = new FileOutputStream(new File(destinationFileName));
         BitOutputStream bos = new BitOutputStream(fos);
-
+int count=0;
         while (true) {
             bytesRead = fis.read(inputBuffer);
             if (bytesRead < 0) break;
@@ -174,7 +180,7 @@ public class Huffman {
                     result.add(codes.get(ESC).getIntCode());
                     putSymbolToFile(bos, c);
                     result.add((int)c);
-                    addNewNode(new TreeNode((int)c, 1));
+                   // addNewNode(new TreeNode((int)c, 1));
                     reBuildTree();
                     tp.printTree(getRoot(weights.get(0)));
                 } else {
@@ -193,18 +199,17 @@ public class Huffman {
     }
 
     private TreeNode findNode(byte[] newCode, int len) {
-        boolean match=true;
+        boolean match=false;
         for (TreeNode node : weights) {
             byte[] code=node.getCode();
             if (node.getC() != null) {
-                for (int i=0;i!=32;i++){
-                    if (newCode[i]<0 || code[i]<0){
-                        match=false;
-                        break;
-                    }
-                    if (newCode[i]!=code[i]){
-                        match=false;
-                        break;
+                if (len == node.getCodeLen()) {
+                    match = true;
+                    for (int i = 0; i != node.getCodeLen(); i++) {
+                        if (newCode[i] != code[i]) {
+                            match = false;
+                            break;
+                        }
                     }
                 }
             }
@@ -225,14 +230,16 @@ public class Huffman {
         frequency = new TreeMap<>();
         frequency.clear();
         frequency.put(ESC, 0);
-        root = reBuildTree();
+        frequency.put(EOF, 10000000);
+        root=reBuildTree();
+
         TreePrinter tp = new TreePrinter();
         FileInputStream fis = new FileInputStream(new File(sourceFileName));
         FileOutputStream fos = new FileOutputStream(new File(destinationFileName));
         BitInputStream bis = new BitInputStream(fis);
 
         do {
-            code[codeLen++]=(bis.read()==true) ? (byte)1 : (byte)0;
+            code[codeLen++]= (byte) bis.read();
             node = findNode(code, codeLen);
             if (node != null) {
                 if (node.getC() == ESC) {
@@ -240,24 +247,26 @@ public class Huffman {
                     Integer counter = frequency.get(c);
                     frequency.put((int)c, counter == null ? 1 : counter + 1);
                     reBuildTree();
+                    tp.printTree(getRoot(weights.get(0)));
                 } else {
                     c = node.getC();
                     Integer counter = frequency.get(c);
                     frequency.put(c, counter == null ? 1 : counter + 1);
                     updateTree(codes.get(c));
+                    codes.clear();
                     traverseTree(getRoot(weights.get(0)));
                 }
                 bufOut[bufCount++] = (byte) c;
                 c = 0;
-                Arrays.fill(code, (byte)0);
+                Arrays.fill(code, (byte)-1);
                 codeLen = 0;
                 if (bufCount == 16) {
                     fos.write(bufOut, 0, bufCount);
                     bufCount = 0;
                 }
             }
-        } while (!(bis.getNum() < 0));
-        fos.write(bufOut, 0, bufCount);
+        } while (!(bis.isEndOfStream()));
+       // fos.write(bufOut, 0, bufCount);
         fos.close();
         bis.close();
         return "";
