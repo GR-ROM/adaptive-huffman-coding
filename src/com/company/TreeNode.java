@@ -1,9 +1,7 @@
 package com.company;
 
-import java.util.Arrays;
-
 public class TreeNode implements Comparable<TreeNode> {
-    private Character c;
+    private Integer c;
     private byte[] code;
     private Integer codeLen;
     private int weight;
@@ -21,7 +19,7 @@ public class TreeNode implements Comparable<TreeNode> {
         this.right = node.right;
     }
 
-    public TreeNode(Character c, int weight) {
+    public TreeNode(Integer c, int weight) {
         this.c = c;
         this.weight = weight;
         this.codeLen = null;
@@ -54,11 +52,11 @@ public class TreeNode implements Comparable<TreeNode> {
         }
     }
 
-    public Character getC() {
+    public Integer getC() {
         return c;
     }
 
-    public void setC(Character c) {
+    public void setC(Integer c) {
         this.c = c;
     }
 
@@ -98,21 +96,21 @@ public class TreeNode implements Comparable<TreeNode> {
         return this.code;
     }
 
-    public void setCode(byte[] code) {
-        if (this.code == null) this.code = new byte[32];
-        System.arraycopy(code, 0, this.code, 0, 32);
-    }
-
-    public int getIntCode() {
-        int t = 0;
-        for (int i = 0; i != 32; i++) {
-            t |= (this.code[i] != 0) ? (1 << i) : 0;
+    public int getIntCode(){
+        int t=0;
+        for (int i=0;i!=32;i++){
+            t|=(this.code[i]!=0) ? (1<<i) : 0;
         }
         return t;
     }
 
-    public byte getCode(int index) {
+    public byte getCode(int index){
         return this.code[index];
+    }
+
+    public void setCode(byte[] code) {
+        if (this.code==null) this.code=new byte[32];
+        System.arraycopy(code, 0, this.code, 0,  32);
     }
 
     public Integer getCodeLen() {
@@ -133,7 +131,7 @@ public class TreeNode implements Comparable<TreeNode> {
         //if (this.c==null) return "";
         String r = "{c:\"" + this.c + "\"," +
                 "weight:" + this.weight + "," +
-                "code:" + Arrays.toString(this.code) + ",";
+                "code:" + this.code + ",";
         //if (this.left==null) r += "left:\"null\",";
         //else {
         //    r += "left:\"" + this.left.toString() + "\",";

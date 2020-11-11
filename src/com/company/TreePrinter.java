@@ -1,5 +1,7 @@
 package com.company;
 
+import java.util.Arrays;
+
 public class TreePrinter {
 
     private int indent = 5;
@@ -9,7 +11,6 @@ public class TreePrinter {
         this.root = root;
         preorder(root, true, 0, false, 0);
     }
-
 
     public void preorder(TreeNode currentNode, boolean lastChild, int previousIndentation, boolean hasSubItems, int deep) {
 
@@ -46,9 +47,8 @@ public class TreePrinter {
 
 
     private String printNode(TreeNode node) {
-        if (node.getCode() != null)
-            return node.getWeight() + " |" + node.getC() + "| " + node.getIntCode();
-        //else
+        if (node.getCode()!=null)
+        return node.getWeight() + " |" + node.getCodeLen() + "| " + Arrays.toString(node.getCode()); else
             return node.getWeight() + " |" + node.getC() + "| " ;
     }
 }
