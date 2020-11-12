@@ -1,1 +1,1 @@
-Adaptive Huffman coding implementation, author: Roman Grinev.
+Adaptive Huffman coding implementation by Roman Grinev
