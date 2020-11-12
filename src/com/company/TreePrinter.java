@@ -1,7 +1,5 @@
 package com.company;
 
-import java.util.Arrays;
-
 public class TreePrinter {
 
     private int indent = 5;
@@ -45,11 +43,7 @@ public class TreePrinter {
         this.indent -= 8;
     }
 
-
     private String printNode(TreeNode node) {
-        if (node.getC() != null)
-            return node.getWeight() + " |" + node.getCodeLen() + "|" + node.getC() + "| " + Arrays.toString(node.getCode());
-        else
-            return node.getWeight() + " |" + node.getC() + "| ";
+        return node.getWeight() + "|" + node.getCodeLen() + "|" + node.getC() + "|" + String.format("0x%08X", node.getCode());
     }
 }

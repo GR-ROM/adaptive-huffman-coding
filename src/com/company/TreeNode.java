@@ -1,10 +1,8 @@
 package com.company;
 
-import java.util.Arrays;
-
 public class TreeNode implements Comparable<TreeNode> {
     private Integer c;
-    private final byte[] code;
+    private int code;
     private int codeLen;
     private int weight;
     private TreeNode parent;
@@ -23,14 +21,14 @@ public class TreeNode implements Comparable<TreeNode> {
 
     public TreeNode(Integer c, int weight) {
         this.c = c;
-        this.code = new byte[32];
+        this.code = 0;
         this.codeLen = 0;
         this.weight = weight;
     }
 
     public TreeNode(TreeNode left, TreeNode right) {
         this.c = null;
-        this.code = new byte[32];
+        this.code = 0;
         this.codeLen = 0;
         this.weight = left.weight + right.weight;
         this.left = left;
@@ -94,25 +92,16 @@ public class TreeNode implements Comparable<TreeNode> {
         this.parent = parent;
     }
 
-    public byte[] getCode() {
+    public int getCode() {
         return this.code;
     }
 
-    public void setCode(byte[] code) {
-        System.arraycopy(code, 0, this.code, 0, 32);
+    public void setCode(int code) {
+        this.code = code;
     }
 
     public int getIntCode() {
-        int t = 0;
-        for (int i = 0; i != this.codeLen; i++) {
-            t |= this.code[i];
-        }
-        if (t < 0) t = 0;
-        return t;
-    }
-
-    public byte getCode(int index) {
-        return this.code[index];
+        return this.code;
     }
 
     public Integer getCodeLen() {
