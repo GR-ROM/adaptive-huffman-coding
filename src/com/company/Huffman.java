@@ -9,7 +9,8 @@ import java.util.*;
 public class Huffman {
 
     private final int ESC = 0xFFFF;
-    private final int EOF = 0x7FFF;
+    private final int EOB = 0x7FFF;
+    private boolean verbose=false;
     private int numCode;
     private TreeNode root;
     private Map<Integer, Integer> frequency;
@@ -63,19 +64,13 @@ public class Huffman {
         }
     }
 
-    private TreeNode getRoot(TreeNode node) {
-        while (node.getParent() != null) node = node.getParent();
-        return node;
-    }
-
     private boolean updateTree(TreeNode node) {
         boolean treeModified = false;
-        boolean t = false;
-        TreeNode inode = node;
+        TreeNode parentNode = node;
         node.setWeight(node.getWeight() + 1);
         while (node.getParent() != null) {
-            inode = node.getParent();
-            inode.setWeight(inode.getWeight() + 1);
+            parentNode = node.getParent();
+            parentNode.setWeight(parentNode.getWeight() + 1);
             for (int i = weights.indexOf(node) + 1; i != weights.size(); i++) {
                 TreeNode cNode = weights.get(i);
                 if (node.getWeight() > cNode.getWeight()) {
@@ -83,11 +78,10 @@ public class Huffman {
                     weights.set(i, node);
                     weights.set(weights.indexOf(node), cNode);
                     treeModified = true;
-                    t = true;
-                } else if (t) break;
+                } else if (treeModified) break;
             }
-            if (inode != node.getParent())
-                inode.setWeight(inode.getWeight() - 1);
+            if (parentNode != node.getParent())
+                parentNode.setWeight(parentNode.getWeight() - 1);
             else {
                 node = node.getParent();
                 node.setWeight(node.getLeft().getWeight() + node.getRight().getWeight());
@@ -123,7 +117,6 @@ public class Huffman {
                     if (t) break;
                 }
             }
-           // Collections.sort(f);
             weights.add(node);
         }
         Collections.sort(weights);
@@ -159,6 +152,7 @@ public class Huffman {
     public List<Integer> encode(String sourceFileName, String destinationFileName) throws IOException {
         weights = new ArrayList<>();
         int c;
+        long sec=0;
         int bytesRead = 0;
         byte[] inputBuffer = new byte[65536];
         frequency = new TreeMap<>();
@@ -169,19 +163,22 @@ public class Huffman {
 
         frequency.clear();
         frequency.put(ESC, 0);
-        frequency.put(EOF, 1000000000);
+        frequency.put(EOB, 0);
         root = reBuildTree();
         traverseTree(weights.get(weights.size() - 1));
         TreePrinter tp = new TreePrinter();
-        tp.printTree(getRoot(weights.get(0)));
 
         int timePutCodeToFile = 0;
         int timeTraverseTree = 0;
         int timeUpdateTree = 0;
-        FileInputStream fis = new FileInputStream(new File(sourceFileName));
-        FileOutputStream fos = new FileOutputStream(new File(destinationFileName));
+
+        File in=new File(sourceFileName);
+        File out=new File(destinationFileName);
+        FileInputStream fis = new FileInputStream(in);
+        FileOutputStream fos = new FileOutputStream(out);
         BitOutputStream bos = new BitOutputStream(fos);
 
+        sec=System.currentTimeMillis();
         while (true) {
             bytesRead = fis.read(inputBuffer);
             if (bytesRead < 0) break;
@@ -193,7 +190,6 @@ public class Huffman {
                     putCodeToFile(bos, codes.get(ESC));
                     putSymbolToFile(bos, c);
                     reBuildTree();
-                  //  tp.printTree(getRoot(weights.get(0)));
                     CountReBuild++;
                 } else {
                     long s = System.currentTimeMillis();
@@ -213,16 +209,24 @@ public class Huffman {
                         CountTreeModifed++;
                     }
                     CountUpdate++;
-                }//reBuildTree();
+                }
             }
         }
+        sec=System.currentTimeMillis()-sec;
+        sec/=1000;
         bos.close();
         fis.close();
-        System.out.println("Counter of rebuilds: " + CountReBuild + ", counter of updates: " + CountUpdate + ", counter of tree modifications: " + CountTreeModifed);
-        System.out.println("Total time of putCodeToFile: " + timePutCodeToFile);
-        System.out.println("Total time of traverseTree: " + timeTraverseTree);
-        System.out.println("Total time of UpdateTree: " + timeUpdateTree);
-        //System.out.println(result.toString());
+        System.out.println("File encoded successfully.");
+        if (this.verbose) {
+            System.out.println("Total tree rebuilds: " + CountReBuild + ", total tree updates: " + CountUpdate + ", total tree modifications: " + CountTreeModifed);
+            System.out.println("Total time of putCodeToFile: " + timePutCodeToFile+ " ms");
+            System.out.println("Total time of traverseTree: " + timeTraverseTree+" ms");
+            System.out.println("Total time of UpdateTree: " + timeUpdateTree+" ms");
+            System.out.println("Input file size: " + String.format("%,d kilobytes", in.length()/1024));
+            System.out.println("Output file size: " + String.format("%,d kilobytes", out.length()/1024));
+            System.out.println("Compression rate: " + String.format("%.2f", (float)in.length()/ out.length()));
+            System.out.println("Compression speed: " + String.format("%.2f kb/s", ((float)in.length()/sec)/1024));
+        }
         return null;
     }
 
@@ -251,7 +255,7 @@ public class Huffman {
         return null;
     }
 
-    public String decode(String sourceFileName, String destinationFileName) throws IOException {
+    public void decode(String sourceFileName, String destinationFileName) throws IOException {
         TreeNode node;
         weights = new ArrayList<>();
         byte[] bufOut = new byte[16];
@@ -262,7 +266,7 @@ public class Huffman {
         frequency = new TreeMap<>();
         frequency.clear();
         frequency.put(ESC, 0);
-        frequency.put(EOF, 1000000000);
+        frequency.put(EOB, 0);
         root = reBuildTree();
 
         TreePrinter tp = new TreePrinter();
@@ -287,7 +291,7 @@ public class Huffman {
                     frequency.put(c, counter == null ? 1 : counter + 1);
                     updateTree(codes.get(c));
                     codes.clear();
-                    traverseTree(getRoot(weights.get(0)));
+                    traverseTree(weights.get(weights.size() - 1));
                 }
                 bufOut[bufCount++] = (byte) c;
                 c = 0;
@@ -302,7 +306,13 @@ public class Huffman {
         fos.write(bufOut, 0, bufCount);
         fos.close();
         bis.close();
-        tp.printTree(getRoot(weights.get(0)));
-        return "";
+    }
+
+    public boolean isVerbose() {
+        return verbose;
+    }
+
+    public void setVerbose(boolean verbose) {
+        this.verbose = verbose;
     }
 }

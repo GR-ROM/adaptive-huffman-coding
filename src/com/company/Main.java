@@ -9,24 +9,39 @@ public class Main {
         Huffman huffman = new Huffman();
         List<Integer> s;
         try {
+            if (args.length>0) if (args[args.length-1].equalsIgnoreCase("-v")) huffman.setVerbose(true);
             if (args.length>1){
                 if (args[0].equalsIgnoreCase("-e")){
-                    huffman.encode(args[1], args[1]+".huf");
+                    if (args.length>3) {
+                        if (args[2].equalsIgnoreCase("-o")) {
+                            huffman.encode(args[1], args[3]);
+                        //    huffman.decode(args[3], args[3]+".out");
+                        }
+                    }  else System.out.println("Output filename is not specified!");
                 }
                 if (args[0].equalsIgnoreCase("-d")){
-                    String ext=args[1].substring(args[1].lastIndexOf('.'), args[1].length());
-                    if (ext.equalsIgnoreCase(".huf")) {
-                        String fileName = args[1].substring(0, args[1].lastIndexOf('.'));
-                        huffman.decode(args[1], fileName);
-                    } else {
                         if (args.length>3){
                             if (args[2].equalsIgnoreCase("-o")) {
                                 huffman.decode(args[1], args[3]);
                             }
-                        }
+                        } else System.out.println("Output filename is not specified!");
                     }
                 }
+            else {
+            if (args.length == 0) System.out.println("Use -? to list options.");
+            if (args.length == 1) {
+                if (args[0].equalsIgnoreCase("-?")) {
+                    System.out.println("Using, encode file: huffman -e /test/input.file -o /test/output.file");
+                    System.out.println("decode file: huffman -d /test/input.file -o /test/output.file");
+                    System.out.println("Options:");
+                    System.out.println("-e encode file");
+                    System.out.println("-d decode file");
+                    System.out.println("-o output file");
+                    System.out.println("-v verbose output");
+                }
+
             }
+        }
         } catch (IOException e) {
             e.printStackTrace();
         }
