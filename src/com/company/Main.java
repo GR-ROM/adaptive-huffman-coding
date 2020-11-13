@@ -14,7 +14,7 @@ public class Main {
                 if (args[0].equalsIgnoreCase("-e")){
                     if (args.length>3) {
                         if (args[2].equalsIgnoreCase("-o")) {
-                            huffman.encode(args[1], args[3]);
+                            huffman.encodeFile(args[1], args[3]);
                         //    huffman.decode(args[3], args[3]+".out");
                         }
                     }  else System.out.println("Output filename is not specified!");

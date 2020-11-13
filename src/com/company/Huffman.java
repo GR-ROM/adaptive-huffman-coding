@@ -1,21 +1,36 @@
 package com.company;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 public class Huffman {
 
     private final int ESC = 0xFFFF;
     private final int EOB = 0x7FFF;
+    private int outBitPos = 0;
+    private int inBytePos = 0;
     private boolean verbose=false;
     private int numCode;
     private TreeNode root;
     private Map<Integer, Integer> frequency;
     private Map<Integer, TreeNode> codes;
     private List<TreeNode> weights;
+
+    public Huffman(){
+        frequency = new TreeMap<>();
+        codes = new HashMap<>();
+        TreePrinter tp = new TreePrinter();
+        weights = new ArrayList<>();
+    }
+
+    public void initCoder(){
+        frequency.clear();
+        frequency.put(ESC, 0);
+        frequency.put(EOB, 0);
+        reBuildTree();
+        root = reBuildTree();
+        traverseTree(weights.get(weights.size() - 1));
+    }
 
     private void addNewNode(TreeNode newNode) {
         TreeNode escNode = weights.get(0);
@@ -125,6 +140,36 @@ public class Huffman {
         return f.get(0);
     }
 
+    private int putCodeToBuffer(byte[] buffer, int bitPos, TreeNode codeNode) {
+        int code = codeNode.getCode();
+        for (int i = 0; i != codeNode.getCodeLen(); i++) {
+            if ((code & 0x80000000)!=0) {
+                buffer[bitPos / 8] |= 1 << (7-(bitPos % 8));
+            } else
+            {
+                buffer[bitPos / 8] &= ~(1 << (7-bitPos % 8));
+            }
+            code <<= 1;
+            bitPos++;
+        }
+        return bitPos;
+    }
+
+    private int putSymbolToBuffer(byte[] buffer, int bitPos, int sym) {
+        for (int i = 0; i != 8; i++) {
+            if ((sym & 0x80)!=0) {
+                buffer[bitPos / 8] |= 1 << (7-(bitPos % 8));
+            } else
+            {
+                buffer[bitPos / 8] &= ~(1 << (7 - (bitPos % 8)));
+            }
+            sym <<= 1;
+            bitPos++;
+        }
+        return bitPos;
+    }
+
+
     private void putCodeToFile(BitOutputStream bos, TreeNode codeNode) throws IOException {
         int code = codeNode.getCode();
         for (int i = 0; i != codeNode.getCodeLen(); i++) {
@@ -149,51 +194,50 @@ public class Huffman {
         return new Byte(sym).intValue();
     }
 
-    public List<Integer> encode(String sourceFileName, String destinationFileName) throws IOException {
-        weights = new ArrayList<>();
-        int c;
-        long sec=0;
-        int bytesRead = 0;
-        byte[] inputBuffer = new byte[65536];
-        frequency = new TreeMap<>();
-        int CountReBuild = 0;
-        int CountUpdate = 0;
-        int CountTreeModifed = 0;
-        codes = new HashMap<>();
-
-        frequency.clear();
-        frequency.put(ESC, 0);
-        frequency.put(EOB, 0);
-        root = reBuildTree();
-        traverseTree(weights.get(weights.size() - 1));
-        TreePrinter tp = new TreePrinter();
-
-        int timePutCodeToFile = 0;
-        int timeTraverseTree = 0;
-        int timeUpdateTree = 0;
-
+    public void encodeFile(String sourceFileName, String destinationFileName) throws IOException {
+        int bytesRead=0;
+        byte[] inBuffer=new byte[65536];
+        byte[] outBuffer=new byte[65536];
+        int outBufferBitLength;
         File in=new File(sourceFileName);
         File out=new File(destinationFileName);
         FileInputStream fis = new FileInputStream(in);
         FileOutputStream fos = new FileOutputStream(out);
-        BitOutputStream bos = new BitOutputStream(fos);
+        initCoder();
+        Random rand=new Random();
+        while(true) {
+            bytesRead = fis.read(inBuffer);
+            if (bytesRead<=0) break;
+            outBufferBitLength=encodeBlock(inBuffer, bytesRead, outBuffer);
+            System.out.println(outBufferBitLength);
+        }
+        fis.close();
+        fos.close();
+    }
+
+    public int encodeBlock(byte[] inData, int inLength, byte[] compressedData) throws IOException {
+        int c;
+        long sec=0;
+        int CountReBuild = 0;
+        int CountUpdate = 0;
+        int CountTreeModifed = 0;
+        int timePutCodeToFile = 0;
+        int timeTraverseTree = 0;
+        int timeUpdateTree = 0;
 
         sec=System.currentTimeMillis();
-        while (true) {
-            bytesRead = fis.read(inputBuffer);
-            if (bytesRead < 0) break;
-            for (int i = 0; i != bytesRead; i++) {
-                c = inputBuffer[i];
+            for (int i = 0; i != inLength; i++) {
+                c = inData[i];
                 Integer counter = frequency.get(c);
                 frequency.put(c, counter == null ? 1 : counter + 1);
                 if (!codes.containsKey(c)) {
-                    putCodeToFile(bos, codes.get(ESC));
-                    putSymbolToFile(bos, c);
+                    outBitPos=putCodeToBuffer(compressedData, outBitPos, codes.get(ESC));
+                    outBitPos=putSymbolToBuffer(compressedData, outBitPos, c);
                     reBuildTree();
                     CountReBuild++;
                 } else {
                     long s = System.currentTimeMillis();
-                    putCodeToFile(bos, codes.get(c));
+                    outBitPos=putCodeToBuffer(compressedData, outBitPos, codes.get(c));
                     long e = System.currentTimeMillis();
                     timePutCodeToFile += e - s;
                     s = System.currentTimeMillis();
@@ -211,23 +255,24 @@ public class Huffman {
                     CountUpdate++;
                 }
             }
-        }
+            if (outBitPos % 8!=0){
+                outBitPos+=8-(outBitPos % 8);
+            }
+           // tp.printTree(weights.get(weights.size()-1));
         sec=System.currentTimeMillis()-sec;
-        sec/=1000;
-        bos.close();
-        fis.close();
         System.out.println("File encoded successfully.");
         if (this.verbose) {
             System.out.println("Total tree rebuilds: " + CountReBuild + ", total tree updates: " + CountUpdate + ", total tree modifications: " + CountTreeModifed);
             System.out.println("Total time of putCodeToFile: " + timePutCodeToFile+ " ms");
             System.out.println("Total time of traverseTree: " + timeTraverseTree+" ms");
             System.out.println("Total time of UpdateTree: " + timeUpdateTree+" ms");
-            System.out.println("Input file size: " + String.format("%,d kilobytes", in.length()/1024));
-            System.out.println("Output file size: " + String.format("%,d kilobytes", out.length()/1024));
-            System.out.println("Compression rate: " + String.format("%.2f", (float)in.length()/ out.length()));
-            System.out.println("Compression speed: " + String.format("%.2f kb/s", ((float)in.length()/sec)/1024));
+            System.out.println("Input file size: " + String.format("%,d kilobytes", inLength/1024));
+            System.out.println("Output file size: " + String.format("%,d kilobytes", (outBitPos/8)/1024));
+            System.out.println("Compression rate: " + String.format("%.2f", (float)inLength/(outBitPos/8)));
+            float time=(float)sec/1000;
+            System.out.println("Compression speed: " + String.format("%.2f kb/s", ((float)(inLength/time)/1000)));
         }
-        return null;
+        return outBitPos;
     }
 
     private TreeNode findNode(int newCode, int len) {
@@ -257,17 +302,11 @@ public class Huffman {
 
     public void decode(String sourceFileName, String destinationFileName) throws IOException {
         TreeNode node;
-        weights = new ArrayList<>();
         byte[] bufOut = new byte[16];
         int bufCount = 0;
         int code = 0;
         int c;
         int codeLen = 0;
-        frequency = new TreeMap<>();
-        frequency.clear();
-        frequency.put(ESC, 0);
-        frequency.put(EOB, 0);
-        root = reBuildTree();
 
         TreePrinter tp = new TreePrinter();
         FileInputStream fis = new FileInputStream(new File(sourceFileName));
