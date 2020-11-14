@@ -106,7 +106,7 @@ public class Huffman {
 
     public void decodeFile(String sourceFileName, String destinationFileName) throws IOException {
         int bytesRead = 0;
-        byte[] inBuffer = new byte[256*1024];
+        byte[] inBuffer = new byte[512*1024];
         byte[] outBuffer = new byte[256*1024];
         int outByteCount=0;
         File in = new File(sourceFileName);
@@ -181,7 +181,6 @@ public class Huffman {
                     tree.printTree();
                     code = 0;
                     codeLen = 0;
-                    c=0;
                     int inBytePos=(inBitCount / 8)+1;
                     inBitCount=inBytePos * 8;
                     break;
