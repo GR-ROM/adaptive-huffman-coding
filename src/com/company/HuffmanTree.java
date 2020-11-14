@@ -8,19 +8,16 @@ public class HuffmanTree {
     private Map<Integer, Integer> frequency;
     private Map<Integer, TreeNode> codes;
     private List<TreeNode> weights;
+    TreePrinter tp;
 
     public HuffmanTree() {
         codes = new HashMap<>();
         weights = new ArrayList<>();
 
         frequency = new TreeMap<>();
-        TreePrinter tp = new TreePrinter();
+        tp = new TreePrinter();
 
-        frequency.clear();
-        frequency.put(Huffman.ESC, 0);
-        frequency.put(Huffman.EOB, 0);
-        root = reBuildTree();
-        traverseTree(weights.get(weights.size() - 1)); /* generate lookaside buffer */
+        this.reset();
     }
 
     public TreeNode getRoot() {
@@ -59,6 +56,15 @@ public class HuffmanTree {
         return this.codes.get(code);
     }
 
+    public void reset(){
+        weights.clear();
+        frequency.clear();
+        frequency.put(Huffman.ESC, 0);
+        frequency.put(Huffman.EOB, 0);
+        root = reBuildTree();
+        traverseTree(weights.get(weights.size() - 1)); /* generate lookaside buffer */
+    }
+
     private void addNewNode(TreeNode newNode) {
         TreeNode escNode = weights.get(0);
         TreeNode parent = escNode.getParent();
@@ -73,6 +79,21 @@ public class HuffmanTree {
         newNode.setParent(middle);
         weights.add(newNode);
         Collections.sort(weights);
+    }
+
+    public void SwapNodes(TreeNode node1, TreeNode node2) {
+        TreeNode tNode1Parent=node1.getParent();
+        TreeNode tNode2Parent=node2.getParent();
+        if (node1.getParent() != node2.getParent()) {
+            if (tNode1Parent.getLeft() == node1) tNode1Parent.setLeft(node2); else tNode1Parent.setRight(node2);
+            if (tNode2Parent.getLeft() == node2) tNode2Parent.setLeft(node1); else tNode2Parent.setRight(node1);
+            node1.setParent(tNode2Parent);
+            node2.setParent(tNode1Parent);
+        } else {
+            TreeNode t = tNode1Parent.getLeft();
+            tNode1Parent.setLeft(tNode1Parent.getRight());
+            tNode1Parent.setRight(t);
+        }
     }
 
     private void traverseTree(TreeNode node) {
@@ -106,9 +127,16 @@ public class HuffmanTree {
         }
     }
 
+    public void printTree(){
+        tp.printTree(weights.get(weights.size()-1));
+    }
+
     public boolean updateTree(int code) {
+        return updateTree(this.getCodeNode(code));
+    }
+
+    public boolean updateTree(TreeNode node) {
         treeModified = false;
-        TreeNode node = this.codes.get(code);
         TreeNode parentNode = node;
         node.setWeight(node.getWeight() + 1);
         while (node.getParent() != null) {
@@ -117,7 +145,7 @@ public class HuffmanTree {
             for (int i = weights.indexOf(node) + 1; i != weights.size(); i++) {
                 TreeNode cNode = weights.get(i);
                 if (node.getWeight() > cNode.getWeight()) {
-                    TreeNode.SwapNodes(node, cNode);
+                    this.SwapNodes(node, cNode);
                     weights.set(i, node);
                     weights.set(weights.indexOf(node), cNode);
                     treeModified = true;
@@ -172,7 +200,7 @@ public class HuffmanTree {
         return f.get(0);
     }
 
-    private TreeNode findNode(int newCode, int len) {
+    public TreeNode findNode(int newCode, int len) {
         boolean match = false;
         int mask = 0;
         //for (int i=0;i!=len;i++) mask |= (1 << (31 - i));

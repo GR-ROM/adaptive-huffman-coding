@@ -15,14 +15,14 @@ public class Main {
                     if (args.length > 3) {
                         if (args[2].equalsIgnoreCase("-o")) {
                             huffman.encodeFile(args[1], args[3]);
-                            //    huffman.decode(args[3], args[3]+".out");
+                            huffman.decodeFile(args[3], args[1]+".out");
                         }
                     } else System.out.println("Output filename is not specified!");
                 }
                 if (args[0].equalsIgnoreCase("-d")) {
                     if (args.length > 3) {
                         if (args[2].equalsIgnoreCase("-o")) {
-                            huffman.decode(args[1], args[3]);
+                         //
                         }
                     } else System.out.println("Output filename is not specified!");
                 }
