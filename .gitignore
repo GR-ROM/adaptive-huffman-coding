@@ -1,1 +1,2 @@
-/out/production/huffman/com/company/*.class
+*.class
+/out/

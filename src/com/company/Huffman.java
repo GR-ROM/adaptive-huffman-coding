@@ -164,17 +164,12 @@ public class Huffman {
 
     public int decodeBlock(byte[] inData, int inLength, byte[] deCompressedData) {
         int outByteCount = 0;
-        TreeNode lastNode;
         while (true) {
             code<<=1;
             if ((inData[inBitCount / 8] & (1 << (7 - (inBitCount % 8)))) != 0) code |= 1;
-
             codeLen++;
             inBitCount++;
-            int tCode=code | 1<<codeLen;
-            node = tree.findNode(tCode, codeLen);
-            if (node!=null)
-
+            node = tree.findNode(code | 1<<codeLen, codeLen);
             if (node != null) {
                 if (node.getC() == EOB) {
                     tree.printTree();
