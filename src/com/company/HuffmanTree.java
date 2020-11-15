@@ -3,12 +3,12 @@ package com.company;
 import java.util.*;
 
 public class HuffmanTree {
+    TreePrinter tp;
     private TreeNode root;
     private boolean treeModified;
     private Map<Integer, Integer> frequency;
     private Map<Integer, TreeNode> codes;
     private List<TreeNode> weights;
-    TreePrinter tp;
 
     public HuffmanTree() {
         codes = new HashMap<>();
@@ -56,12 +56,14 @@ public class HuffmanTree {
         return this.codes.get(code);
     }
 
-    public void reset(){
+    public void reset() {
         weights.clear();
         frequency.clear();
         frequency.put(Huffman.ESC, 0);
         frequency.put(Huffman.EOB, 0);
         root = reBuildTree();
+        root.setCode(1);
+        root.setCodeLen(0);
         traverseTree(weights.get(weights.size() - 1)); /* generate lookaside buffer */
     }
 
@@ -82,11 +84,13 @@ public class HuffmanTree {
     }
 
     public void SwapNodes(TreeNode node1, TreeNode node2) {
-        TreeNode tNode1Parent=node1.getParent();
-        TreeNode tNode2Parent=node2.getParent();
+        TreeNode tNode1Parent = node1.getParent();
+        TreeNode tNode2Parent = node2.getParent();
         if (node1.getParent() != node2.getParent()) {
-            if (tNode1Parent.getLeft() == node1) tNode1Parent.setLeft(node2); else tNode1Parent.setRight(node2);
-            if (tNode2Parent.getLeft() == node2) tNode2Parent.setLeft(node1); else tNode2Parent.setRight(node1);
+            if (tNode1Parent.getLeft() == node1) tNode1Parent.setLeft(node2);
+            else tNode1Parent.setRight(node2);
+            if (tNode2Parent.getLeft() == node2) tNode2Parent.setLeft(node1);
+            else tNode2Parent.setRight(node1);
             node1.setParent(tNode2Parent);
             node2.setParent(tNode1Parent);
         } else {
@@ -98,6 +102,8 @@ public class HuffmanTree {
 
     private void traverseTree(TreeNode node) {
         int code;
+        node.setCode(1);
+        node.setCodeLen(0);
         List<TreeNode> stack = new ArrayList<>();
         stack.add(node);
 
@@ -110,7 +116,8 @@ public class HuffmanTree {
                 if (node.getLeft() != null) {
                     parent = node.getLeft().getParent();
                     code = parent.getCode();
-                    code &= ~(1 << (31 - node.getCodeLen()));
+                    code <<= 1;
+                    code &= ~1;
                     node.getLeft().setCodeLen(parent.getCodeLen() + 1);
                     node.getLeft().setCode(code);
                     stack.add(node.getLeft());
@@ -118,7 +125,8 @@ public class HuffmanTree {
                 if (node.getRight() != null) {
                     parent = node.getRight().getParent();
                     code = parent.getCode();
-                    code |= (1 << (31 - node.getCodeLen()));
+                    code <<= 1;
+                    code |= 1;
                     node.getRight().setCodeLen(parent.getCodeLen() + 1);
                     node.getRight().setCode(code);
                     stack.add(node.getRight());
@@ -127,8 +135,8 @@ public class HuffmanTree {
         }
     }
 
-    public void printTree(){
-        tp.printTree(weights.get(weights.size()-1));
+    public void printTree() {
+        tp.printTree(weights.get(weights.size() - 1));
     }
 
     public boolean updateTree(int code) {
@@ -201,26 +209,14 @@ public class HuffmanTree {
     }
 
     public TreeNode findNode(int newCode, int len) {
-        boolean match = false;
-        int mask = 0;
-        //for (int i=0;i!=len;i++) mask |= (1 << (31 - i));
         for (TreeNode node : weights) {
             int code = node.getCode();
             if (node.getC() != null) {
                 if (len == node.getCodeLen()) {
-                    match = true;
-                    //     newCode&=mask;
-                    //     code&=mask;
-                    for (int i = 0; i != len; i++) {
-                        if ((newCode & 1 << (31 - i)) != (code & 1 << (31 - i))) {
-                            //if (newCode!=code){
-                            match = false;
-                            break;
-                        }
-                    }
+                    //    if ((newCode & 1 << (31 - i)) != (code & 1 << (31 - i))) {
+                    if (newCode == code) return node;
                 }
             }
-            if (match) return node;
         }
         return null;
     }
