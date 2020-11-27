@@ -68,7 +68,7 @@ public class Huffman {
         int bytesRead = 0;
         byte[] inBuffer = new byte[256 * 1024];
         byte[] outBuffer = new byte[256 * 1024];
-        int outBufferBitLength;
+        int outBufferByteLength;
         File in = new File(sourceFileName);
         File out = new File(destinationFileName);
         FileInputStream fis = new FileInputStream(in);
@@ -80,11 +80,11 @@ public class Huffman {
         while (true) {
             bytesRead = fis.read(inBuffer);
             if (bytesRead <= 0) break;
-            outBufferBitLength = encodeBlock(inBuffer, bytesRead, outBuffer);
+            outBufferByteLength = encodeBlock(inBuffer, bytesRead, outBuffer);
             if (blocks == 0) tree.printTree();
             blocks++;
-            fos.write(outBuffer, 0, outBufferBitLength / 8);
-            System.out.println(String.format("%.2f kilobytes", (float) outBufferBitLength / 8 / 1024));
+            fos.write(outBuffer, 0, outBufferByteLength);
+            System.out.println(String.format("%.2f kilobytes", (float)outBufferByteLength / 1024));
         }
         sec = System.currentTimeMillis() - sec;
 
@@ -111,16 +111,15 @@ public class Huffman {
         FileOutputStream fos = new FileOutputStream(out);
         initCoder();
         bytesRead = fis.read(inBuffer, 0, 256 * 1024);
+
         while (true) {
             inBitCount = 0;
             outByteCount = decodeBlock(inBuffer, bytesRead, outBuffer);
             fos.write(outBuffer, 0, outByteCount);
             int pos = (inBitCount / 8);
             int c = 0;
-            for (int i = pos; i != bytesRead; i++) {
-                inBuffer[c++] = inBuffer[i];
-            }
-            bytesRead = fis.read(inBuffer, (256 * 1024 - pos), 256 * 1024);
+            for (int i = pos; i != bytesRead; i++) inBuffer[c++] = inBuffer[i];
+            bytesRead = fis.read(inBuffer, bytesRead - pos, 256 * 1024);
             if (bytesRead <= 0) break;
         }
         fis.close();
@@ -143,23 +142,23 @@ public class Huffman {
                         outBitPos,
                         c,
                         8); // put new symbol as is
-                tree.reBuildTree();
+                tree.rebuild();
                 tree.printTree();
             } else {
                 outBitPos = putBitsToBuffer(compressedData,
                         outBitPos,
                         tree.getCodeNode(c).getCode(),
                         tree.getCodeNode(c).getCodeLen()); // put code of existing symbol
-                tree.updateTree(c);
+                tree.update(c);
             }
         }
         outBitPos = putBitsToBuffer(compressedData,
                 outBitPos,
                 tree.getCodeNode(EOB).getCode(),
                 tree.getCodeNode(EOB).getCodeLen());  // put EOB mark
-        int outBytePos = (outBitPos / 8) + 1;
-        outBitPos = outBytePos * 8;
-        return outBitPos;
+        outBitPos += 8-(outBitPos % 8);
+        outBitPos+=8;
+        return outBitPos / 8;
     }
 
     public int decodeBlock(byte[] inData, int inLength, byte[] deCompressedData) {
@@ -175,21 +174,21 @@ public class Huffman {
                     tree.printTree();
                     code = 0;
                     codeLen = 0;
-                    int inBytePos = (inBitCount / 8) + 1;
-                    inBitCount = inBytePos * 8;
+                    inBitCount += 8-(inBitCount % 8);
+                    inBitCount+=8;
                     break;
-                }
+                } else
                 if (node.getC() == ESC) {
                     c = getBitsFromBuffer(inData, inBitCount, 8);
                     inBitCount += 8;
                     Integer counter = tree.getFrequency().get(c);
                     tree.getFrequency().put(c, counter == null ? 1 : counter + 1);
-                    tree.reBuildTree();
+                    tree.rebuild();
                 } else {
                     c = node.getC();
                     Integer counter = tree.getFrequency().get(c);
                     tree.getFrequency().put(c, counter == null ? 1 : counter + 1);
-                    tree.updateTree(node);
+                    tree.update(node);
                 }
                 deCompressedData[outByteCount++] = (byte) c;
                 code = 0;

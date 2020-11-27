@@ -61,7 +61,7 @@ public class HuffmanTree {
         frequency.clear();
         frequency.put(Huffman.ESC, 0);
         frequency.put(Huffman.EOB, 0);
-        root = reBuildTree();
+        root = rebuild();
         root.setCode(1);
         root.setCodeLen(0);
         traverseTree(weights.get(weights.size() - 1)); /* generate lookaside buffer */
@@ -139,11 +139,11 @@ public class HuffmanTree {
         tp.printTree(weights.get(weights.size() - 1));
     }
 
-    public boolean updateTree(int code) {
-        return updateTree(this.getCodeNode(code));
+    public boolean update(int code) {
+        return update(this.getCodeNode(code));
     }
 
-    public boolean updateTree(TreeNode node) {
+    public boolean update(TreeNode node) {
         treeModified = false;
         TreeNode parentNode = node;
         node.setWeight(node.getWeight() + 1);
@@ -173,7 +173,7 @@ public class HuffmanTree {
         return treeModified;
     }
 
-    public TreeNode reBuildTree() {
+    public TreeNode rebuild() {
         List<TreeNode> f = new ArrayList<>();
         weights.clear();
         for (Integer c : frequency.keySet()) {
