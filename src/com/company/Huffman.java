@@ -4,308 +4,28 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.*;
 
 public class Huffman {
 
-    private final int ESC = 0xFFFF;
-    private final int EOB = 0x7FFF;
-    private boolean verbose=false;
-    private int numCode;
-    private TreeNode root;
-    private Map<Integer, Integer> frequency;
-    private Map<Integer, TreeNode> codes;
-    private List<TreeNode> weights;
+    public final static int ESC = 0xFFFF;
+    public final static int EOB = 0x7FFF;
 
-    private void addNewNode(TreeNode newNode) {
-        TreeNode escNode = weights.get(0);
-        TreeNode parent = escNode.getParent();
-        TreeNode middle = new TreeNode(null, escNode.getWeight() + newNode.getWeight());
-        if (parent != null) {
-            if (parent.getLeft() == escNode) parent.setLeft(middle);
-            else parent.setRight(middle);
-        }
-        middle.setLeft(escNode);
-        middle.setRight(newNode);
-        escNode.setParent(middle);
-        newNode.setParent(middle);
-        weights.add(newNode);
-        Collections.sort(weights);
-    }
+    private final static int NO_DATA = 0x7FF;
+    private final static int DATA_READY = 0xFF;
+    private final HuffmanTree treeComp;
+    private final HuffmanTree treeDecomp;
+    //decoder context
+    private TreeNode node;
+    private int code = 0;
+    private int c;
+    private int codeLen = 0;
+    private int inBitCount;
+    private int outByteCount;
+    private boolean verbose = false;
 
-    private void traverseTree(TreeNode node) {
-        int code;
-        List<TreeNode> stack = new ArrayList<>();
-        stack.add(node);
-
-        while (stack.size() != 0) {
-            TreeNode parent;
-            node = stack.remove(stack.size() - 1);
-            if (node.getC() != null) {
-                codes.put(node.getC(), node);
-            } else {
-                if (node.getLeft() != null) {
-                    parent = node.getLeft().getParent();
-                    code = parent.getCode();
-                    code &= ~(1 << (31 - node.getCodeLen()));
-                    node.getLeft().setCodeLen(parent.getCodeLen() + 1);
-                    node.getLeft().setCode(code);
-                    stack.add(node.getLeft());
-                }
-                if (node.getRight() != null) {
-                    parent = node.getRight().getParent();
-                    code = parent.getCode();
-                    code |= (1 << (31 - node.getCodeLen()));
-                    node.getRight().setCodeLen(parent.getCodeLen() + 1);
-                    node.getRight().setCode(code);
-                    stack.add(node.getRight());
-                }
-            }
-        }
-    }
-
-    private boolean updateTree(TreeNode node) {
-        boolean treeModified = false;
-        TreeNode parentNode = node;
-        node.setWeight(node.getWeight() + 1);
-        while (node.getParent() != null) {
-            parentNode = node.getParent();
-            parentNode.setWeight(parentNode.getWeight() + 1);
-            for (int i = weights.indexOf(node) + 1; i != weights.size(); i++) {
-                TreeNode cNode = weights.get(i);
-                if (node.getWeight() > cNode.getWeight()) {
-                    TreeNode.SwapNodes(node, cNode);
-                    weights.set(i, node);
-                    weights.set(weights.indexOf(node), cNode);
-                    treeModified = true;
-                } else if (treeModified) break;
-            }
-            if (parentNode != node.getParent())
-                parentNode.setWeight(parentNode.getWeight() - 1);
-            else {
-                node = node.getParent();
-                node.setWeight(node.getLeft().getWeight() + node.getRight().getWeight());
-            }
-        }
-        return treeModified;
-    }
-
-    private TreeNode reBuildTree() {
-        List<TreeNode> f = new ArrayList<>();
-        weights.clear();
-        for (Integer c : frequency.keySet()) {
-            TreeNode node = new TreeNode(c, frequency.get(c));
-            f.add(node);
-            weights.add(node);
-        }
-
-        Collections.sort(f);
-        while (f.size() > 1) {
-            TreeNode left = f.remove(0);
-            TreeNode right = f.remove(0);
-            TreeNode node = new TreeNode(left, right);
-            left.setParent(node);
-            right.setParent(node);
-            f.add(0, node);
-            int c = 0;
-            Boolean t = false;
-            for (int i = 0; i != f.size(); i++) {
-                if (f.get(c).getWeight() > f.get(i).getWeight()) {
-                    Collections.swap(f, c++, i);
-                    t = true;
-                } else {
-                    if (t) break;
-                }
-            }
-            weights.add(node);
-        }
-        Collections.sort(weights);
-        codes.clear();
-        traverseTree(weights.get(weights.size() - 1));
-        return f.get(0);
-    }
-
-    private void putCodeToFile(BitOutputStream bos, TreeNode codeNode) throws IOException {
-        int code = codeNode.getCode();
-        for (int i = 0; i != codeNode.getCodeLen(); i++) {
-            bos.write((code & 0x80000000) != 0 ? 1 : 0);
-            code <<= 1;
-        }
-    }
-
-    private void putSymbolToFile(BitOutputStream bos, int sym) throws IOException {
-        for (int i = 0; i != 8; i++) {
-            bos.write((sym & 0x80)!=0 ? 1 : 0);
-            sym<<=1;
-        }
-    }
-
-    private int getSymbolFromFile(BitInputStream bis) throws IOException {
-        byte sym = 0;
-        for (int i = 0; i != 8; i++) {
-            sym <<= 1;
-            sym |= (bis.read() > 0) ? 1 : 0;
-        }
-        return new Byte(sym).intValue();
-    }
-
-    public List<Integer> encode(String sourceFileName, String destinationFileName) throws IOException {
-        weights = new ArrayList<>();
-        int c;
-        long sec=0;
-        int bytesRead = 0;
-        byte[] inputBuffer = new byte[65536];
-        frequency = new TreeMap<>();
-        int CountReBuild = 0;
-        int CountUpdate = 0;
-        int CountTreeModifed = 0;
-        codes = new HashMap<>();
-
-        frequency.clear();
-        frequency.put(ESC, 0);
-        frequency.put(EOB, 0);
-        root = reBuildTree();
-        traverseTree(weights.get(weights.size() - 1));
-        TreePrinter tp = new TreePrinter();
-
-        int timePutCodeToFile = 0;
-        int timeTraverseTree = 0;
-        int timeUpdateTree = 0;
-
-        File in=new File(sourceFileName);
-        File out=new File(destinationFileName);
-        FileInputStream fis = new FileInputStream(in);
-        FileOutputStream fos = new FileOutputStream(out);
-        BitOutputStream bos = new BitOutputStream(fos);
-
-        sec=System.currentTimeMillis();
-        while (true) {
-            bytesRead = fis.read(inputBuffer);
-            if (bytesRead < 0) break;
-            for (int i = 0; i != bytesRead; i++) {
-                c = inputBuffer[i];
-                Integer counter = frequency.get(c);
-                frequency.put(c, counter == null ? 1 : counter + 1);
-                if (!codes.containsKey(c)) {
-                    putCodeToFile(bos, codes.get(ESC));
-                    putSymbolToFile(bos, c);
-                    reBuildTree();
-                    CountReBuild++;
-                } else {
-                    long s = System.currentTimeMillis();
-                    putCodeToFile(bos, codes.get(c));
-                    long e = System.currentTimeMillis();
-                    timePutCodeToFile += e - s;
-                    s = System.currentTimeMillis();
-                    boolean treeModified = updateTree(codes.get(c));
-                    e = System.currentTimeMillis();
-                    timeTraverseTree += e - s;
-                    if (treeModified) {
-                        codes.clear();
-                        s = System.currentTimeMillis();
-                        traverseTree(weights.get(weights.size() - 1));
-                        e = System.currentTimeMillis();
-                        timeUpdateTree += e - s;
-                        CountTreeModifed++;
-                    }
-                    CountUpdate++;
-                }
-            }
-        }
-        sec=System.currentTimeMillis()-sec;
-        sec/=1000;
-        bos.close();
-        fis.close();
-        System.out.println("File encoded successfully.");
-        if (this.verbose) {
-            System.out.println("Total tree rebuilds: " + CountReBuild + ", total tree updates: " + CountUpdate + ", total tree modifications: " + CountTreeModifed);
-            System.out.println("Total time of putCodeToFile: " + timePutCodeToFile+ " ms");
-            System.out.println("Total time of traverseTree: " + timeTraverseTree+" ms");
-            System.out.println("Total time of UpdateTree: " + timeUpdateTree+" ms");
-            System.out.println("Input file size: " + String.format("%,d kilobytes", in.length()/1024));
-            System.out.println("Output file size: " + String.format("%,d kilobytes", out.length()/1024));
-            System.out.println("Compression rate: " + String.format("%.2f", (float)in.length()/ out.length()));
-            System.out.println("Compression speed: " + String.format("%.2f kb/s", ((float)in.length()/sec)/1024));
-        }
-        return null;
-    }
-
-    private TreeNode findNode(int newCode, int len) {
-        boolean match = false;
-        int mask = 0;
-        //for (int i=0;i!=len;i++) mask |= (1 << (31 - i));
-        for (TreeNode node : weights) {
-            int code = node.getCode();
-            if (node.getC() != null) {
-                if (len == node.getCodeLen()) {
-                    match = true;
-                    //     newCode&=mask;
-                    //     code&=mask;
-                    for (int i = 0; i != len; i++) {
-                        if ((newCode & 1 << (31 - i)) != (code & 1 << (31 - i))) {
-                            //if (newCode!=code){
-                            match = false;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (match) return node;
-        }
-        return null;
-    }
-
-    public void decode(String sourceFileName, String destinationFileName) throws IOException {
-        TreeNode node;
-        weights = new ArrayList<>();
-        byte[] bufOut = new byte[16];
-        int bufCount = 0;
-        int code = 0;
-        int c;
-        int codeLen = 0;
-        frequency = new TreeMap<>();
-        frequency.clear();
-        frequency.put(ESC, 0);
-        frequency.put(EOB, 0);
-        root = reBuildTree();
-
-        TreePrinter tp = new TreePrinter();
-        FileInputStream fis = new FileInputStream(new File(sourceFileName));
-        FileOutputStream fos = new FileOutputStream(new File(destinationFileName));
-        BitInputStream bis = new BitInputStream(fis);
-
-        do {
-            if (bis.read() != 0) code |= 1 << (31 - codeLen);
-            codeLen++;
-            node = findNode(code, codeLen);
-            if (node != null) {
-                if (node.getC() == ESC) {
-                    c = getSymbolFromFile(bis);
-                    Integer counter = frequency.get(c);
-                    frequency.put(c, counter == null ? 1 : counter + 1);
-                    reBuildTree();
-                    //tp.printTree(getRoot(weights.get(0)));
-                } else {
-                    c = node.getC();
-                    Integer counter = frequency.get(c);
-                    frequency.put(c, counter == null ? 1 : counter + 1);
-                    updateTree(codes.get(c));
-                    codes.clear();
-                    traverseTree(weights.get(weights.size() - 1));
-                }
-                bufOut[bufCount++] = (byte) c;
-                c = 0;
-                code = 0;
-                codeLen = 0;
-                if (bufCount == 16) {
-                    fos.write(bufOut, 0, bufCount);
-                    bufCount = 0;
-                }
-            }
-        } while (!(bis.isEndOfStream()));
-        fos.write(bufOut, 0, bufCount);
-        fos.close();
-        bis.close();
+    public Huffman() {
+        treeComp = new HuffmanTree();
+        treeDecomp=new HuffmanTree();
     }
 
     public boolean isVerbose() {
@@ -315,4 +35,185 @@ public class Huffman {
     public void setVerbose(boolean verbose) {
         this.verbose = verbose;
     }
+
+    public void initCoder() {
+        code = 1;
+        codeLen = 0;
+        c = 0;
+        inBitCount = 0;
+        outByteCount = 0;
+        treeComp.reset();
+        treeDecomp.reset();
+    }
+
+    private int putBitsToBuffer(byte[] buffer, int bitPos, int value, int valueBitLength) {
+        for (int i = 0; i != valueBitLength; i++) {
+            if ((value & (1<<(valueBitLength-1))) != 0) buffer[bitPos / 8] |= 1 << (7 - (bitPos % 8));
+            else buffer[bitPos / 8] &= ~(1 << (7 - bitPos % 8));
+            value <<= 1;
+            bitPos++;
+        }
+        return bitPos;
+    }
+
+    private int getBitsFromBuffer(byte[] buffer, int bitPos, int valueBitLength) {
+        int result = 0;
+        for (int i = 0; i != valueBitLength; i++) {
+            result<<=1;
+            if ((buffer[bitPos / 8] & 1 << (7 - bitPos % 8)) != 0)
+                result |= 1;
+            bitPos++;
+        }
+        return result;
+    }
+
+    public void encodeFile(String sourceFileName, String destinationFileName) throws IOException {
+        int bytesRead = 0;
+        byte[] inBuffer = new byte[64];
+        byte[] outBuffer = new byte[128];
+        byte[] decodedBuffer = new byte[128];
+        int outBufferByteLength;
+        File in = new File(sourceFileName);
+        File out = new File(destinationFileName);
+        FileInputStream fis = new FileInputStream(in);
+        FileOutputStream fos = new FileOutputStream(out);
+        initCoder();
+
+        long sec = System.currentTimeMillis();
+        int blocks = 0;
+        while (true) {
+            bytesRead = fis.read(inBuffer);
+            if (bytesRead <= 0) break;
+
+            outBufferByteLength = encodeBlock(inBuffer, bytesRead, outBuffer);
+            decodeBlock(outBuffer, outBufferByteLength, decodedBuffer);
+
+            System.out.println(String.format("%.2f kilobytes", (float)outBufferByteLength / 1024));
+        }
+        sec = System.currentTimeMillis() - sec;
+
+        fis.close();
+        fos.close();
+
+        System.out.println("File encoded successfully.");
+        if (this.verbose) {
+            System.out.println("Input file size: " + String.format("%,d kilobytes", in.length() / 1024));
+            System.out.println("Output file size: " + String.format("%,d kilobytes", out.length() / 1024));
+            System.out.println("Compression rate: " + String.format("%.2f", (float) in.length() / out.length()));
+            System.out.println("Compression speed: " + String.format("%.2f kb/s", ((float) in.length() / 1024) / ((float) sec / 1000)));
+        }
+    }
+
+    public void decodeFile(String sourceFileName, String destinationFileName) throws IOException {
+        int bytesRead = 0;
+        byte[] inBuffer = new byte[512 * 1024];
+        byte[] outBuffer = new byte[256 * 1024];
+        int outByteCount = 0;
+        File in = new File(sourceFileName);
+        File out = new File(destinationFileName);
+        FileInputStream fis = new FileInputStream(in);
+        FileOutputStream fos = new FileOutputStream(out);
+        initCoder();
+        bytesRead = fis.read(inBuffer, 0, 256 * 1024);
+
+        while (true) {
+            inBitCount = 0;
+            outByteCount = decodeBlock(inBuffer, bytesRead, outBuffer);
+            fos.write(outBuffer, 0, outByteCount);
+            int pos = (inBitCount / 8);
+            int c = 0;
+            for (int i = pos; i != bytesRead; i++) inBuffer[c++] = inBuffer[i];
+            bytesRead = fis.read(inBuffer, bytesRead - pos, 256 * 1024);
+            if (bytesRead <= 0) break;
+        }
+        fis.close();
+        fos.close();
+    }
+
+    public int encodeBlock(byte[] inData, int inLength, byte[] compressedData) {
+        int c;
+        int outBitPos = 0;
+        for (int i = 0; i != inLength; i++) {
+            c = inData[i];
+            Integer counter = treeComp.getFrequency().get(c);
+            treeComp.getFrequency().put(c, counter == null ? 1 : counter + 1);
+            if (i==61){
+                System.out.println("============================================");
+                treeComp.printTree();
+            }
+
+            if (!treeComp.getCodes().containsKey(c)) {
+                outBitPos = putBitsToBuffer(compressedData,
+                        outBitPos,
+                        treeComp.getCodeNode(ESC).getCode(),
+                        treeComp.getCodeNode(ESC).getCodeLen());  // put ESC mark
+                outBitPos = putBitsToBuffer(compressedData,
+                        outBitPos,
+                        c,
+                        8); // put new symbol as is
+                treeComp.rebuild();
+               // tree.printTree();
+            } else {
+                outBitPos = putBitsToBuffer(compressedData,
+                        outBitPos,
+                        treeComp.getCodeNode(c).getCode(),
+                        treeComp.getCodeNode(c).getCodeLen()); // put code of existing symbol
+                treeComp.rebuild();
+                //treeComp.update(c);
+            }
+        }
+        outBitPos = putBitsToBuffer(compressedData,
+                outBitPos,
+                treeComp.getCodeNode(EOB).getCode(),
+                treeComp.getCodeNode(EOB).getCodeLen());  // put EOB mark
+        outBitPos += 8-(outBitPos % 8);
+        outBitPos+=8;
+        return outBitPos / 8;
+    }
+
+    public int decodeBlock(byte[] inData, int inLength, byte[] deCompressedData) {
+        int outByteCount = 0;
+        inBitCount=0;
+        code=0;
+        codeLen=0;
+        while (true) {
+            code<<=1;
+            if ((inData[inBitCount / 8] & (1 << (7 - (inBitCount % 8)))) != 0) code |= 1;
+            codeLen++;
+            inBitCount++;
+            node = treeDecomp.findNode(code | 1<<codeLen, codeLen);
+            if (node != null) {
+                if (node.getC() == EOB) {
+                    treeDecomp.printTree();
+                    code = 0;
+                    codeLen = 0;
+                    inBitCount += 8-(inBitCount % 8);
+                    inBitCount+=8;
+                    break;
+                } else
+                if (node.getC() == ESC) {
+                    c = getBitsFromBuffer(inData, inBitCount, 8);
+                    inBitCount += 8;
+                    Integer counter = treeDecomp.getFrequency().get(c);
+                    treeDecomp.getFrequency().put(c, counter == null ? 1 : counter + 1);
+                    treeDecomp.rebuild();
+                } else {
+                    c = node.getC();
+                    Integer counter = treeDecomp.getFrequency().get(c);
+                    treeDecomp.getFrequency().put(c, counter == null ? 1 : counter + 1);
+                   // treeDecomp.update(node);
+                    treeComp.rebuild();
+                }
+                deCompressedData[outByteCount++] = (byte) c;
+                if (outByteCount==61){
+                    System.out.println("-------------------------------------------------------");
+                    treeComp.printTree();
+                }
+                code = 0;
+                codeLen = 0;
+            }
+        }
+        return outByteCount;
+    }
+
 }

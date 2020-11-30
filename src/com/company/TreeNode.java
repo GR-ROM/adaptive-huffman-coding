@@ -35,23 +35,6 @@ public class TreeNode implements Comparable<TreeNode> {
         this.right = right;
     }
 
-    public static void SwapNodes(TreeNode node1, TreeNode node2) {
-        TreeNode tParent = node1.parent;
-        if (node1.parent != node2.parent) {
-            TreeNode tNode = node1;
-            if (node1.parent.left == node1) tNode.parent.left = node2;
-            else tNode.parent.right = node2;
-            if (node2.parent.left == node2) node2.parent.left = node1;
-            else node2.parent.right = node1;
-            node1.parent = node2.parent;
-            node2.parent = tParent;
-        } else {
-            TreeNode t = tParent.left;
-            tParent.left = tParent.right;
-            tParent.right = t;
-        }
-    }
-
     public Integer getC() {
         return c;
     }
