@@ -12,7 +12,8 @@ public class Huffman {
 
     private final static int NO_DATA = 0x7FF;
     private final static int DATA_READY = 0xFF;
-    private final HuffmanTree tree;
+    private final HuffmanTree treeComp;
+    private final HuffmanTree treeDecomp;
     //decoder context
     private TreeNode node;
     private int code = 0;
@@ -23,7 +24,8 @@ public class Huffman {
     private boolean verbose = false;
 
     public Huffman() {
-        tree = new HuffmanTree();
+        treeComp = new HuffmanTree();
+        treeDecomp=new HuffmanTree();
     }
 
     public boolean isVerbose() {
@@ -40,7 +42,8 @@ public class Huffman {
         c = 0;
         inBitCount = 0;
         outByteCount = 0;
-        tree.reset();
+        treeComp.reset();
+        treeDecomp.reset();
     }
 
     private int putBitsToBuffer(byte[] buffer, int bitPos, int value, int valueBitLength) {
@@ -66,8 +69,9 @@ public class Huffman {
 
     public void encodeFile(String sourceFileName, String destinationFileName) throws IOException {
         int bytesRead = 0;
-        byte[] inBuffer = new byte[256 * 1024];
-        byte[] outBuffer = new byte[256 * 1024];
+        byte[] inBuffer = new byte[64];
+        byte[] outBuffer = new byte[128];
+        byte[] decodedBuffer = new byte[128];
         int outBufferByteLength;
         File in = new File(sourceFileName);
         File out = new File(destinationFileName);
@@ -80,10 +84,10 @@ public class Huffman {
         while (true) {
             bytesRead = fis.read(inBuffer);
             if (bytesRead <= 0) break;
+
             outBufferByteLength = encodeBlock(inBuffer, bytesRead, outBuffer);
-            if (blocks == 0) tree.printTree();
-            blocks++;
-            fos.write(outBuffer, 0, outBufferByteLength);
+            decodeBlock(outBuffer, outBufferByteLength, decodedBuffer);
+
             System.out.println(String.format("%.2f kilobytes", (float)outBufferByteLength / 1024));
         }
         sec = System.currentTimeMillis() - sec;
@@ -131,31 +135,37 @@ public class Huffman {
         int outBitPos = 0;
         for (int i = 0; i != inLength; i++) {
             c = inData[i];
-            Integer counter = tree.getFrequency().get(c);
-            tree.getFrequency().put(c, counter == null ? 1 : counter + 1);
-            if (!tree.getCodes().containsKey(c)) {
+            Integer counter = treeComp.getFrequency().get(c);
+            treeComp.getFrequency().put(c, counter == null ? 1 : counter + 1);
+            if (i==61){
+                System.out.println("============================================");
+                treeComp.printTree();
+            }
+
+            if (!treeComp.getCodes().containsKey(c)) {
                 outBitPos = putBitsToBuffer(compressedData,
                         outBitPos,
-                        tree.getCodeNode(ESC).getCode(),
-                        tree.getCodeNode(ESC).getCodeLen());  // put ESC mark
+                        treeComp.getCodeNode(ESC).getCode(),
+                        treeComp.getCodeNode(ESC).getCodeLen());  // put ESC mark
                 outBitPos = putBitsToBuffer(compressedData,
                         outBitPos,
                         c,
                         8); // put new symbol as is
-                tree.rebuild();
-                tree.printTree();
+                treeComp.rebuild();
+               // tree.printTree();
             } else {
                 outBitPos = putBitsToBuffer(compressedData,
                         outBitPos,
-                        tree.getCodeNode(c).getCode(),
-                        tree.getCodeNode(c).getCodeLen()); // put code of existing symbol
-                tree.update(c);
+                        treeComp.getCodeNode(c).getCode(),
+                        treeComp.getCodeNode(c).getCodeLen()); // put code of existing symbol
+                treeComp.rebuild();
+                //treeComp.update(c);
             }
         }
         outBitPos = putBitsToBuffer(compressedData,
                 outBitPos,
-                tree.getCodeNode(EOB).getCode(),
-                tree.getCodeNode(EOB).getCodeLen());  // put EOB mark
+                treeComp.getCodeNode(EOB).getCode(),
+                treeComp.getCodeNode(EOB).getCodeLen());  // put EOB mark
         outBitPos += 8-(outBitPos % 8);
         outBitPos+=8;
         return outBitPos / 8;
@@ -163,15 +173,18 @@ public class Huffman {
 
     public int decodeBlock(byte[] inData, int inLength, byte[] deCompressedData) {
         int outByteCount = 0;
+        inBitCount=0;
+        code=0;
+        codeLen=0;
         while (true) {
             code<<=1;
             if ((inData[inBitCount / 8] & (1 << (7 - (inBitCount % 8)))) != 0) code |= 1;
             codeLen++;
             inBitCount++;
-            node = tree.findNode(code | 1<<codeLen, codeLen);
+            node = treeDecomp.findNode(code | 1<<codeLen, codeLen);
             if (node != null) {
                 if (node.getC() == EOB) {
-                    tree.printTree();
+                    treeDecomp.printTree();
                     code = 0;
                     codeLen = 0;
                     inBitCount += 8-(inBitCount % 8);
@@ -181,16 +194,21 @@ public class Huffman {
                 if (node.getC() == ESC) {
                     c = getBitsFromBuffer(inData, inBitCount, 8);
                     inBitCount += 8;
-                    Integer counter = tree.getFrequency().get(c);
-                    tree.getFrequency().put(c, counter == null ? 1 : counter + 1);
-                    tree.rebuild();
+                    Integer counter = treeDecomp.getFrequency().get(c);
+                    treeDecomp.getFrequency().put(c, counter == null ? 1 : counter + 1);
+                    treeDecomp.rebuild();
                 } else {
                     c = node.getC();
-                    Integer counter = tree.getFrequency().get(c);
-                    tree.getFrequency().put(c, counter == null ? 1 : counter + 1);
-                    tree.update(node);
+                    Integer counter = treeDecomp.getFrequency().get(c);
+                    treeDecomp.getFrequency().put(c, counter == null ? 1 : counter + 1);
+                   // treeDecomp.update(node);
+                    treeComp.rebuild();
                 }
                 deCompressedData[outByteCount++] = (byte) c;
+                if (outByteCount==61){
+                    System.out.println("-------------------------------------------------------");
+                    treeComp.printTree();
+                }
                 code = 0;
                 codeLen = 0;
             }
